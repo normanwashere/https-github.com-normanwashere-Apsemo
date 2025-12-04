@@ -1,7 +1,7 @@
 
 
 import React, { useState, useEffect, createContext, useContext, ReactNode, useCallback, useMemo } from 'react';
-import { HashRouter, Routes, Route, useNavigate, NavLink } from 'react-router-dom';
+import { HashRouter, Routes, Route, useNavigate, NavLink, useLocation } from 'react-router-dom';
 import { User, LocationData, Database } from './types';
 import { supabase } from './services/supabase';
 
@@ -38,6 +38,8 @@ interface AppContextType {
     barangayToMunicipalityMap: { [barangay: string]: string };
     showToast: (message: string, type?: 'success' | 'error') => void;
     showConfirm: (title: string, message: string, onConfirm: () => void) => void;
+    installApp: () => void;
+    isInstallable: boolean;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
@@ -53,30 +55,30 @@ export const useApp = () => {
 const navLinksConfig = {
     admin: [
         { name: 'Dashboard', path: '/', icon: 'fa-tachometer-alt' },
-        { name: 'Events', path: '/events', icon: 'fa-bolt' },
         { name: 'Residents', path: '/residents', icon: 'fa-users' },
-        { name: 'Status Update', path: '/update', icon: 'fa-qrcode' },
+        { name: 'Events', path: '/events', icon: 'fa-bolt' },
+        { name: 'Update', path: '/update', icon: 'fa-qrcode' },
         { name: 'Incidents', path: '/incidents', icon: 'fa-exclamation-triangle' },
-        { name: 'Evac Centers', path: '/evac-centers', icon: 'fa-hospital' },
-        { name: 'AI Reports', path: '/reports', icon: 'fa-robot' },
+        { name: 'Centers', path: '/evac-centers', icon: 'fa-hospital' },
+        { name: 'Reports', path: '/reports', icon: 'fa-robot' },
         { name: 'Users', path: '/users', icon: 'fa-user-cog' },
         { name: 'Settings', path: '/settings', icon: 'fa-cog' },
     ],
     encoder: [
         { name: 'Dashboard', path: '/', icon: 'fa-tachometer-alt' },
-        { name: 'Events', path: '/events', icon: 'fa-bolt' },
         { name: 'Residents', path: '/residents', icon: 'fa-users' },
-        { name: 'Status Update', path: '/update', icon: 'fa-qrcode' },
+        { name: 'Events', path: '/events', icon: 'fa-bolt' },
+        { name: 'Update', path: '/update', icon: 'fa-qrcode' },
         { name: 'Incidents', path: '/incidents', icon: 'fa-exclamation-triangle' },
-        { name: 'Evac Centers', path: '/evac-centers', icon: 'fa-hospital' },
-        { name: 'AI Reports', path: '/reports', icon: 'fa-robot' },
+        { name: 'Centers', path: '/evac-centers', icon: 'fa-hospital' },
+        { name: 'Reports', path: '/reports', icon: 'fa-robot' },
         { name: 'Settings', path: '/settings', icon: 'fa-cog' },
     ],
     viewer: [
         { name: 'Dashboard', path: '/', icon: 'fa-tachometer-alt' },
         { name: 'Events', path: '/events', icon: 'fa-bolt' },
         { name: 'Incidents', path: '/incidents', icon: 'fa-exclamation-triangle' },
-        { name: 'Evac Centers', path: '/evac-centers', icon: 'fa-hospital' },
+        { name: 'Centers', path: '/evac-centers', icon: 'fa-hospital' },
         { name: 'Settings', path: '/settings', icon: 'fa-cog' },
     ],
 };
@@ -88,10 +90,12 @@ const Sidebar: React.FC = () => {
     return (
         <aside className="bg-white/20 backdrop-blur-lg text-slate-800 w-64 p-4 flex-col fixed inset-y-0 left-0 transform -translate-x-full md:flex md:translate-x-0 transition-transform duration-300 ease-in-out z-30 border-r border-white/30">
             <div className="flex items-center mb-8 px-2">
-                <Icon name="fa-shield-alt" className="text-3xl text-blue-800" />
-                <h1 className="text-xl font-bold ml-3 text-slate-900">DM App</h1>
+                <div className="h-16 w-16 rounded-full bg-white/20 flex items-center justify-center mr-3 overflow-hidden shadow-sm">
+                    <img src="https://sofia.static.domains/Logos/apsemo2.png" alt="APSEMO Logo" className="h-full w-full object-cover" />
+                </div>
+                <h1 className="text-xl font-bold text-slate-900">DM App</h1>
             </div>
-            <nav className="space-y-1 flex-grow">
+            <nav className="space-y-1 flex-grow overflow-y-auto">
                 {navLinks.map((link) => (
                     <NavLink
                         key={link.name}
@@ -107,7 +111,7 @@ const Sidebar: React.FC = () => {
                     </NavLink>
                 ))}
             </nav>
-            <div className="mt-auto">
+            <div className="mt-auto pt-4">
                 <div className={`text-xs font-medium text-center p-2 rounded-lg mb-2 ${isOnline ? 'bg-green-300/50 text-green-900' : 'bg-red-300/50 text-red-900'}`}>
                     <Icon name={isOnline ? 'fa-check-circle' : 'fa-plane-slash'} className="mr-2" />
                     {isOnline ? 'Online' : 'Offline'}
@@ -123,30 +127,104 @@ const Sidebar: React.FC = () => {
 
 const BottomNav: React.FC = () => {
     const { user } = useApp();
-    const navLinks = user ? navLinksConfig[user.role] : [];
+    const [showMoreMenu, setShowMoreMenu] = useState(false);
+    const location = useLocation();
     
+    // Close menu when route changes
+    useEffect(() => {
+        setShowMoreMenu(false);
+    }, [location]);
+
+    if (!user) return null;
+
+    const navLinks = navLinksConfig[user.role];
+    const MAX_SLOTS = 5;
+    
+    // Logic: If links > 5, we show 4 links + "More" button. If <= 5, we show all of them.
+    const showMore = navLinks.length > MAX_SLOTS;
+    const visibleLinks = showMore ? navLinks.slice(0, MAX_SLOTS - 1) : navLinks;
+    const hiddenLinks = showMore ? navLinks.slice(MAX_SLOTS - 1) : [];
+
+    const isMoreActive = hiddenLinks.some(link => link.path === location.pathname);
+
     return (
-        <nav className="md:hidden fixed bottom-0 inset-x-0 bg-white/20 backdrop-blur-lg flex items-stretch z-20 border-t border-white/20 overflow-x-auto">
-            {navLinks.map((link) => (
-                <NavLink
-                    key={link.name}
-                    to={link.path}
-                    className={({ isActive }) =>
-                        `flex-1 flex flex-col items-center justify-center p-2 text-slate-800 hover:bg-white/20 transition-colors text-center min-w-[75px] ${
-                        isActive ? 'text-blue-800 bg-blue-500/10' : ''
-                        }`
-                    }
-                >
-                    <Icon name={link.icon} className="text-xl" />
-                    <span className="text-xs font-medium mt-1 leading-tight break-words">{link.name}</span>
-                </NavLink>
-            ))}
-        </nav>
+        <>
+            {/* Backdrop for More Menu */}
+            {showMoreMenu && (
+                <div 
+                    className="fixed inset-0 bg-black/40 z-40 md:hidden backdrop-blur-sm animate-fadeIn" 
+                    onClick={() => setShowMoreMenu(false)}
+                />
+            )}
+
+            {/* More Menu Popup */}
+            <div className={`md:hidden fixed bottom-[85px] right-4 left-4 z-50 transition-all duration-200 transform origin-bottom ${showMoreMenu ? 'scale-100 opacity-100 translate-y-0' : 'scale-95 opacity-0 translate-y-4 pointer-events-none'}`}>
+                 <div className="bg-white/90 backdrop-blur-xl border border-white/40 rounded-2xl shadow-2xl p-4 grid grid-cols-3 gap-3">
+                    {hiddenLinks.map((link) => (
+                        <NavLink
+                            key={link.name}
+                            to={link.path}
+                            className={({ isActive }) =>
+                                `flex flex-col items-center justify-center p-3 rounded-xl transition-all duration-200 text-center ${
+                                isActive ? 'bg-blue-100/60 text-blue-900 shadow-inner' : 'hover:bg-white/50 text-slate-700'
+                                }`
+                            }
+                            onClick={() => setShowMoreMenu(false)}
+                        >
+                             <div className={`w-10 h-10 rounded-full flex items-center justify-center mb-2 shadow-sm transition-colors ${location.pathname === link.path ? 'bg-blue-600 text-white' : 'bg-slate-100 text-slate-500'}`}>
+                                <Icon name={link.icon} className="text-lg" />
+                             </div>
+                            <span className="text-[10px] font-bold">{link.name}</span>
+                        </NavLink>
+                    ))}
+                 </div>
+                 {/* Decorative Triangle/Arrow pointing to the More button */}
+                 <div className="absolute -bottom-2 right-[10%] w-4 h-4 bg-white/90 backdrop-blur-xl border-r border-b border-white/40 transform rotate-45"></div>
+            </div>
+
+            {/* Main Bottom Bar */}
+            <nav className="md:hidden fixed bottom-0 inset-x-0 bg-white/90 backdrop-blur-xl flex justify-around items-center z-50 border-t border-white/20 pb-safe pt-2 h-[80px] px-2 shadow-[0_-5px_20px_rgba(0,0,0,0.05)] rounded-t-2xl">
+                {visibleLinks.map((link) => (
+                    <NavLink
+                        key={link.name}
+                        to={link.path}
+                        className={({ isActive }) =>
+                            `flex-1 flex flex-col items-center justify-center py-1 rounded-xl transition-all duration-200 group ${
+                            isActive ? 'text-blue-700' : 'text-slate-500 hover:text-slate-700'
+                            }`
+                        }
+                    >
+                         {({ isActive }) => (
+                            <>
+                                <div className={`relative p-2 rounded-2xl transition-all duration-300 ${isActive ? 'bg-blue-100 text-blue-700 translate-y-[-5px] shadow-lg shadow-blue-500/20' : 'group-hover:bg-slate-100'}`}>
+                                     <Icon name={link.icon} className="text-xl" />
+                                </div>
+                                <span className={`text-[10px] font-bold mt-1 transition-all duration-200 ${isActive ? 'opacity-100 translate-y-[-2px]' : 'opacity-80'}`}>{link.name}</span>
+                            </>
+                         )}
+                    </NavLink>
+                ))}
+
+                {showMore && (
+                    <button
+                        onClick={() => setShowMoreMenu(!showMoreMenu)}
+                        className={`flex-1 flex flex-col items-center justify-center py-1 rounded-xl transition-all duration-200 group ${
+                            isMoreActive || showMoreMenu ? 'text-blue-700' : 'text-slate-500 hover:text-slate-700'
+                        }`}
+                    >
+                        <div className={`relative p-2 rounded-2xl transition-all duration-300 ${isMoreActive || showMoreMenu ? 'bg-blue-100 text-blue-700 translate-y-[-5px] shadow-lg shadow-blue-500/20' : 'group-hover:bg-slate-100'}`}>
+                             <Icon name="fa-th-large" className={`text-xl transition-transform duration-300 ${showMoreMenu ? 'rotate-180' : ''}`} />
+                        </div>
+                        <span className={`text-[10px] font-bold mt-1 transition-all duration-200 ${isMoreActive || showMoreMenu ? 'opacity-100 translate-y-[-2px]' : 'opacity-80'}`}>More</span>
+                    </button>
+                )}
+            </nav>
+        </>
     );
 };
 
 const AppFooter: React.FC = () => (
-    <footer className="text-center p-4 mt-8 text-slate-700 text-xs">
+    <footer className="text-center p-4 mt-8 text-slate-700 text-xs hidden md:block">
         <div className="flex justify-center items-center space-x-2">
           <span className="opacity-80">Powered by</span>
           <a href="https://dvotesoftware.com/" target="_blank" rel="noopener noreferrer" className="flex items-center space-x-1 opacity-90 hover:opacity-100 transition-opacity">
@@ -175,9 +253,10 @@ const AppContent: React.FC = () => {
     }
 
     return (
-        <div className="relative min-h-screen">
+        <div className="relative min-h-screen bg-slate-50/50">
             <Sidebar />
-            <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto md:ml-64 pb-28 md:pb-6">
+            {/* Added extra padding bottom for mobile to account for fixed nav */}
+            <main className="flex-1 p-4 sm:p-6 lg:p-8 overflow-y-auto md:ml-64 pb-24 md:pb-6 min-h-screen">
                 <Routes>
                     <Route path="/" element={<DashboardPage />} />
                     <Route path="/residents" element={<ResidentsPage />} />
@@ -203,6 +282,7 @@ const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [locationData, setLocationData] = useState<LocationData>({});
     const [toast, setToast] = useState<ToastState | null>(null);
     const [confirm, setConfirm] = useState<ConfirmState>({ isOpen: false, title: '', message: '', onConfirm: () => {} });
+    const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
 
     const navigate = useNavigate();
 
@@ -221,6 +301,33 @@ const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
             window.removeEventListener('offline', handleOffline);
         };
     }, []);
+
+    // Handle PWA Install Prompt
+    useEffect(() => {
+        const handler = (e: any) => {
+            // Prevent Chrome 67 and earlier from automatically showing the prompt
+            e.preventDefault();
+            // Stash the event so it can be triggered later.
+            setDeferredPrompt(e);
+        };
+        window.addEventListener('beforeinstallprompt', handler);
+        return () => window.removeEventListener('beforeinstallprompt', handler);
+    }, []);
+
+    const installApp = async () => {
+        if (!deferredPrompt) return;
+        // Show the prompt
+        deferredPrompt.prompt();
+        // Wait for the user to respond to the prompt
+        const { outcome } = await deferredPrompt.userChoice;
+        if (outcome === 'accepted') {
+            console.log('User accepted the install prompt');
+        } else {
+            console.log('User dismissed the install prompt');
+        }
+        // We've used the prompt, and can't use it again, discard it
+        setDeferredPrompt(null);
+    };
 
     const fetchLocationData = useCallback(async () => {
         const { data, error } = await supabase.from('barangays').select('municipality, barangay');
@@ -355,7 +462,9 @@ const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
         barangayToMunicipalityMap,
         showToast,
         showConfirm,
-    }), [user, isLoading, isOnline, locationData, barangayToMunicipalityMap, logout, showToast, showConfirm]);
+        installApp,
+        isInstallable: !!deferredPrompt
+    }), [user, isLoading, isOnline, locationData, barangayToMunicipalityMap, logout, showToast, showConfirm, deferredPrompt]);
 
     return (
         <AppContext.Provider value={value}>

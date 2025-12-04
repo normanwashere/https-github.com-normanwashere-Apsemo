@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { useApp } from '../App';
 import { supabase } from '../services/supabase';
@@ -115,7 +116,7 @@ const OfflineDataManagement: React.FC = () => {
 
 
 const SettingsPage: React.FC = () => {
-    const { user, showToast, logout, showConfirm } = useApp();
+    const { user, showToast, logout, showConfirm, installApp, isInstallable } = useApp();
     const [newPassword, setNewPassword] = useState('');
     const [confirmPassword, setConfirmPassword] = useState('');
     const [isUpdating, setIsUpdating] = useState(false);
@@ -176,11 +177,23 @@ const SettingsPage: React.FC = () => {
 
              <GlassCard>
                 <h3 className="font-semibold text-xl mb-4 text-slate-900">Install App</h3>
-                 <p className="text-sm text-slate-700 mb-2">To install this app on your device for easy access:</p>
-                 <ol className="list-decimal list-inside text-sm text-slate-700 space-y-1">
-                    <li>Open your browser's menu (usually three dots or lines).</li>
-                    <li>Look for and tap 'Install app' or 'Add to Home screen'.</li>
-                 </ol>
+                {isInstallable ? (
+                    <div className="flex items-center justify-between">
+                         <p className="text-sm text-slate-700">Install this app for a better experience and offline access.</p>
+                         <Button onClick={installApp}>
+                             <Icon name="fa-download" className="mr-2" />
+                             Install Now
+                         </Button>
+                    </div>
+                ) : (
+                    <>
+                        <p className="text-sm text-slate-700 mb-2">To install this app on your device manually:</p>
+                        <ol className="list-decimal list-inside text-sm text-slate-700 space-y-1">
+                            <li>Open your browser's menu (usually three dots or lines).</li>
+                            <li>Look for and tap 'Install app' or 'Add to Home screen'.</li>
+                        </ol>
+                    </>
+                )}
             </GlassCard>
 
             <OfflineDataManagement />

@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, createContext, useContext, ReactNode, useCallback, useMemo } from 'react';
 import { HashRouter, Routes, Route, useNavigate, NavLink, useLocation } from 'react-router-dom';
 import { User, LocationData, Database } from './types';
@@ -37,6 +38,8 @@ interface AppContextType {
     barangayToMunicipalityMap: { [barangay: string]: string };
     showToast: (message: string, type?: 'success' | 'error') => void;
     showConfirm: (title: string, message: string, onConfirm: () => void) => void;
+    installApp: () => void;
+    isInstallable: boolean;
 }
 
 const AppContext = createContext<AppContextType | null>(null);
@@ -279,6 +282,7 @@ const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
     const [locationData, setLocationData] = useState<LocationData>({});
     const [toast, setToast] = useState<ToastState | null>(null);
     const [confirm, setConfirm] = useState<ConfirmState>({ isOpen: false, title: '', message: '', onConfirm: () => {} });
+    const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
 
     const navigate = useNavigate();
 
@@ -297,6 +301,33 @@ const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
             window.removeEventListener('offline', handleOffline);
         };
     }, []);
+
+    // Handle PWA Install Prompt
+    useEffect(() => {
+        const handler = (e: any) => {
+            // Prevent Chrome 67 and earlier from automatically showing the prompt
+            e.preventDefault();
+            // Stash the event so it can be triggered later.
+            setDeferredPrompt(e);
+        };
+        window.addEventListener('beforeinstallprompt', handler);
+        return () => window.removeEventListener('beforeinstallprompt', handler);
+    }, []);
+
+    const installApp = async () => {
+        if (!deferredPrompt) return;
+        // Show the prompt
+        deferredPrompt.prompt();
+        // Wait for the user to respond to the prompt
+        const { outcome } = await deferredPrompt.userChoice;
+        if (outcome === 'accepted') {
+            console.log('User accepted the install prompt');
+        } else {
+            console.log('User dismissed the install prompt');
+        }
+        // We've used the prompt, and can't use it again, discard it
+        setDeferredPrompt(null);
+    };
 
     const fetchLocationData = useCallback(async () => {
         const { data, error } = await supabase.from('barangays').select('municipality, barangay');
@@ -431,7 +462,9 @@ const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
         barangayToMunicipalityMap,
         showToast,
         showConfirm,
-    }), [user, isLoading, isOnline, locationData, barangayToMunicipalityMap, logout, showToast, showConfirm]);
+        installApp,
+        isInstallable: !!deferredPrompt
+    }), [user, isLoading, isOnline, locationData, barangayToMunicipalityMap, logout, showToast, showConfirm, deferredPrompt]);
 
     return (
         <AppContext.Provider value={value}>
