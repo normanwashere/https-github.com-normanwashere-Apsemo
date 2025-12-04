@@ -1,0 +1,22 @@
+
+{
+  "short_name": "APSEMO",
+  "name": "Albay Public Safety & Emergency Management",
+  "icons": [
+    {
+      "src": "https://sofia.static.domains/Logos/apsemo2.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://sofia.static.domains/Logos/apsemo2.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#eff6ff",
+  "background_color": "#eff6ff",
+  "orientation": "portrait"
+}
