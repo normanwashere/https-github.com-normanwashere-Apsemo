@@ -78,19 +78,25 @@ const QRScanner: React.FC<{ onScan: (result: string) => void; isScanning: boolea
                 video: { facingMode: 'environment' } 
             });
             streamRef.current = stream;
-            
-            if (videoRef.current) {
-                videoRef.current.srcObject = stream;
-                videoRef.current.setAttribute('playsinline', 'true');
-                await videoRef.current.play();
-                setIsScanning(true);
-            }
+            // We just set state here. The useEffect below handles attaching the stream to the video element
+            // once it has been rendered into the DOM.
+            setIsScanning(true);
         } catch (err: any) {
             console.error("Error accessing camera:", err);
             setCameraError("Could not access camera. Ensure you have granted permissions.");
             setIsScanning(false);
         }
     }, [setIsScanning, libraryLoaded]);
+
+    // Effect to attach stream to video element when isScanning becomes true
+    useEffect(() => {
+        if (isScanning && streamRef.current && videoRef.current) {
+            const video = videoRef.current;
+            video.srcObject = streamRef.current;
+            video.setAttribute('playsinline', 'true'); // Critical for iOS
+            video.play().catch(e => console.error("Video play failed", e));
+        }
+    }, [isScanning]);
     
     const stopScan = useCallback(() => {
         if(streamRef.current) {
@@ -122,7 +128,6 @@ const QRScanner: React.FC<{ onScan: (result: string) => void; isScanning: boolea
                     const jsQR = (window as any).jsQR;
                     
                     if (jsQR) {
-                        // Removed aggressive inversionAttempts to use defaults for better performance/compatibility
                         const code = jsQR(imageData.data, imageData.width, imageData.height);
                         if (code) {
                             onScan(code.data);
@@ -162,7 +167,12 @@ const QRScanner: React.FC<{ onScan: (result: string) => void; isScanning: boolea
             <div className="relative w-full max-w-sm mx-auto aspect-square bg-slate-800/20 rounded-xl overflow-hidden shadow-inner border border-slate-200">
                 {isScanning ? (
                     <>
-                        <video ref={videoRef} className="absolute top-0 left-0 w-full h-full object-cover" muted />
+                        <video 
+                            ref={videoRef} 
+                            className="absolute top-0 left-0 w-full h-full object-cover" 
+                            muted 
+                            playsInline 
+                        />
                         <div className="absolute inset-0 border-8 border-blue-500/50 rounded-xl pointer-events-none animate-pulse"></div>
                         <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-red-500/80 shadow-[0_0_8px_rgba(239,68,68,0.8)] pointer-events-none"></div>
                         <p className="absolute bottom-4 left-0 right-0 text-center text-white text-xs font-semibold drop-shadow-md">Scanning...</p>
@@ -298,7 +308,6 @@ export const StatusUpdatePage: React.FC = () => {
             setFamilyMembers([]);
             setNewStatus('Safe');
             setEvacCenterId('');
-            // Optional: Reload data to get latest stats elsewhere, but not strictly needed for this view
         }
     };
 
